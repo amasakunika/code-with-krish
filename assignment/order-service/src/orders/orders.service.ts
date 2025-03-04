@@ -26,6 +26,7 @@ export class OrdersService implements OnModuleInit{
 
   private readonly inventoryServiceUrl = 'http://localhost:3007/products';
   private readonly customerServiceUrl = 'http://localhost:3002/customers';
+  private readonly dispatchServiceUrl = 'http://localhost:3006/customers';
   async onModuleInit() {
     await this.producer.connect();
     await this.consumer.connect();
@@ -161,6 +162,8 @@ return { message: `order is placed.waiting inventory service to process`};
       );
     }
     order.status = updateStatus.status;
+
+
     return await this.orderRepository.save(order);
   }
 
@@ -186,6 +189,47 @@ return { message: `order is placed.waiting inventory service to process`};
             order: saveOrder,
           }),
         );
+
+        await this.producer.send({
+          topic: 'ama.order.inventory.updated',
+          messages: [
+            { value: JSON.stringify({ customerId, customerName, items }) },
+          ],
+        });
+
+        await this.orderItemRepository.save(orderItems);
+      },
+    });
+  }
+  async OrderConfirmed(){
+    await this.consumer.subscribe({ topic: 'ama.order-create-confirmed' });
+    await this.consumer.run({
+      eachMessage: async ({ message }) => {
+        const { customerId, customerName, items, city } = JSON.parse(
+          message.value.toString(),
+        );
+
+        const order = this.orderRepository.create({
+          customerId,
+          status: OrderStatus.CONFIRMED,
+        })
+        const saveOrder = await this.orderItemRepository.save(order);
+        const orderItems = items.map((item) =>
+        
+          this.orderItemRepository.create({
+            productId: item.productId,
+            price: item.price,
+            quantity: item.quantity,
+            order: saveOrder,
+          }),
+        );
+
+        await this.producer.send({
+          topic: 'ama.order.confirmed',
+          messages: [
+            { value: JSON.stringify({ customerId, customerName, items, city }) },
+          ],
+        });
 
         await this.orderItemRepository.save(orderItems);
       },
