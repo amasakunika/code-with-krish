@@ -82,7 +82,7 @@ export class ProductsService implements OnModuleInit{
 
         for(const item of items){
           await this.reduceStock(item.productId, item.quantity);
-          const lockKey = `thilini.product:${item.productId}):lock`;
+          const lockKey = `ama.product:${item.productId}):lock`;
           console.log(lockKey);
           const lock = await this.redis.del(lockKey);
         }
